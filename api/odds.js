@@ -1,15 +1,14 @@
-// api/odds.js — Vercel serverless function
-// Deploy to Vercel, set ODDS_API_KEY in project environment variables.
-// Endpoint: GET /api/odds?regions=uk,eu,us
+// api/odds.js — Vercel serverless function (CommonJS)
 
 const ODDS_BASE = “https://api.the-odds-api.com/v4”;
 const CACHE_TTL_MS = 60_000;
 
-// In-memory cache — persists across warm invocations of the same instance
 const cache = { data: null, ts: 0 };
 
-export default async function handler(req, res) {
-// Only allow GET
+module.exports = async function handler(req, res) {
+res.setHeader(“Access-Control-Allow-Origin”, “*”);
+res.setHeader(“Access-Control-Allow-Methods”, “GET”);
+
 if (req.method !== “GET”) {
 return res.status(405).json({ error: “Method not allowed” });
 }
@@ -19,20 +18,19 @@ if (!apiKey) {
 return res.status(500).json({ error: “ODDS_API_KEY is not configured” });
 }
 
-// Return cached data if fresh
 if (cache.data && Date.now() - cache.ts < CACHE_TTL_MS) {
 res.setHeader(“X-Cache”, “HIT”);
 return res.status(200).json(cache.data);
 }
 
-const regions = req.query.regions || “uk,eu,us”;
+const regions = (req.query && req.query.regions) || “uk,eu,us”;
 const url = `${ODDS_BASE}/sports/upcoming/odds/?apiKey=${apiKey}&regions=${regions}&markets=h2h&oddsFormat=decimal`;
 
 let oddsRes;
 try {
 oddsRes = await fetch(url);
 } catch (err) {
-return res.status(503).json({ error: “Failed to reach Odds API: “ + err.message });
+return res.status(503).json({ error: “Cannot reach Odds API: “ + err.message });
 }
 
 if (!oddsRes.ok) {
@@ -52,15 +50,12 @@ return res.status(502).json({ error: “Invalid JSON from Odds API” });
 }
 
 if (!Array.isArray(data)) {
-const msg = data?.message || “Unexpected response format”;
-return res.status(502).json({ error: msg });
+return res.status(502).json({ error: data?.message || “Unexpected response format” });
 }
 
-// Store in cache
 cache.data = data;
 cache.ts = Date.now();
 
-// Forward useful quota headers to client
 const remaining = oddsRes.headers.get(“x-requests-remaining”);
 const used = oddsRes.headers.get(“x-requests-used”);
 if (remaining) res.setHeader(“X-Requests-Remaining”, remaining);
@@ -68,4 +63,4 @@ if (used) res.setHeader(“X-Requests-Used”, used);
 res.setHeader(“X-Cache”, “MISS”);
 
 return res.status(200).json(data);
-}
+};
