@@ -544,3 +544,5 @@ export default function ArbScanLive() {
         </div>
       )}
     </div>
+  );
+}
