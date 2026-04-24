@@ -10,6 +10,30 @@ const DEBOUNCE_MS  = 2_000;
 // Minimum arb % to show — filters noise from rounding errors
 const MIN_PROFIT_PCT = 0.1;
 
+// All UK bookmakers available in The Odds API
+const UK_BOOKMAKERS = [
+  "888sport",
+  "Betfair Exchange",
+  "Betfair Sportsbook",
+  "Betfred",
+  "Bet Victor",
+  "Betway",
+  "BoyleSports",
+  "Casumo",
+  "Coral",
+  "Grosvenor",
+  "Ladbrokes",
+  "LeoVegas",
+  "LiveScore Bet",
+  "Matchbook",
+  "Paddy Power",
+  "Sky Bet",
+  "Smarkets",
+  "Unibet",
+  "Virgin Bet",
+  "William Hill",
+];
+
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK_DATA = [
   {
@@ -106,7 +130,7 @@ function impliedProb(price) {
   return 1 / price;
 }
 
-function findArbs(games) {
+function findArbs(games, selectedBooks = null) {
   if (!Array.isArray(games)) return [];
   const arbs = [];
 
@@ -120,6 +144,8 @@ function findArbs(games) {
 
     for (const bm of game.bookmakers) {
       if (!bm?.title) continue;
+      // Skip bookmakers not in user's selected list
+      if (selectedBooks && selectedBooks.size > 0 && !selectedBooks.has(bm.title)) continue;
       for (const mkt of (bm.markets || [])) {
         if (mkt?.key !== "h2h") continue;
         for (const o of (mkt.outcomes || [])) {
@@ -322,14 +348,16 @@ const ArbCard = memo(function ArbCard({ arb }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function ArbScanLive() {
-  const [rawGames,    setRawGames]    = useState([]);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState(null);
-  const [lastScanned, setLastScanned] = useState(null);
-  const [scanned,     setScanned]     = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [includeWarm, setIncludeWarm] = useState(true);
-  const [scanStats,   setScanStats]   = useState(null);
+  const [rawGames,      setRawGames]      = useState([]);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState(null);
+  const [lastScanned,   setLastScanned]   = useState(null);
+  const [scanned,       setScanned]       = useState(false);
+  const [autoRefresh,   setAutoRefresh]   = useState(false);
+  const [includeWarm,   setIncludeWarm]   = useState(true);
+  const [scanStats,     setScanStats]     = useState(null);
+  const [selectedBooks, setSelectedBooks] = useState(new Set(UK_BOOKMAKERS));
+  const [showBookies,   setShowBookies]   = useState(false);
 
   const scanningRef      = useRef(false);
   const lastScanRef      = useRef(0);
@@ -343,8 +371,8 @@ export default function ArbScanLive() {
       const h = getHeatLabel(g.commence_time);
       return h === "live" || h === "hot" || (h === "warm" && includeWarm);
     });
-    return findArbs(filtered);
-  }, [rawGames, includeWarm]);
+    return findArbs(filtered, selectedBooks);
+  }, [rawGames, includeWarm, selectedBooks]);
 
   // ── Scan ──────────────────────────────────────────────────────────────────
   const scan = useCallback(async (isAuto = false) => {
@@ -394,6 +422,22 @@ export default function ArbScanLive() {
       scanningRef.current = false;
     }
   }, []); // no deps — rawGames filtering happens in useMemo
+
+  const toggleBook = useCallback((name) => {
+    setSelectedBooks(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        if (next.size <= 2) return prev; // need at least 2 to find arbs
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllBooks  = useCallback(() => setSelectedBooks(new Set(UK_BOOKMAKERS)), []);
+  const clearAllBooks   = useCallback(() => setSelectedBooks(new Set(UK_BOOKMAKERS.slice(0, 2))), []);
 
   // ── Auto-refresh ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -445,7 +489,7 @@ export default function ArbScanLive() {
           </h1>
         </div>
         <p style={{ margin: 0, color: "#3a3a4a", fontSize: "10px", letterSpacing: "0.08em" }}>
-          ALL SPORTS · UK BOOKMAKERS · {MIN_PROFIT_PCT}%+ ARBS ONLY
+          ALL SPORTS · UK EU US · {MIN_PROFIT_PCT}%+ ARBS ONLY
         </p>
       </div>
 
@@ -457,6 +501,44 @@ export default function ArbScanLive() {
         <button style={btn(autoRefresh, "#00aaff")} onClick={() => setAutoRefresh(v => !v)}>
           {autoRefresh ? "↺ AUTO ON" : "↺ AUTO OFF"}
         </button>
+      </div>
+
+      {/* ── Bookmaker picker ── */}
+      <div style={{ marginBottom: "14px" }}>
+        <button
+          onClick={() => setShowBookies(v => !v)}
+          style={{ ...btn(showBookies, "#00e5a0"), marginBottom: showBookies ? "10px" : "0" }}
+        >
+          {showBookies ? "▼ MY BOOKIES" : "▶ MY BOOKIES"} ({selectedBooks.size}/{UK_BOOKMAKERS.length})
+        </button>
+
+        {showBookies && (
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "10px", padding: "14px" }}>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+              <button onClick={selectAllBooks} style={{ ...btn(false, "#00e5a0"), fontSize: "10px", padding: "5px 10px" }}>ALL</button>
+              <button onClick={clearAllBooks}  style={{ ...btn(false, "#ff4d6d"), fontSize: "10px", padding: "5px 10px" }}>CLEAR</button>
+              <span style={{ color: "#444", fontSize: "10px", alignSelf: "center" }}>tap to toggle — need at least 2</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {UK_BOOKMAKERS.map(name => {
+                const active = selectedBooks.has(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => toggleBook(name)}
+                    style={{
+                      padding: "5px 10px", borderRadius: "6px", border: "1px solid",
+                      borderColor: active ? "rgba(0,229,160,0.4)" : "rgba(255,255,255,0.06)",
+                      background:  active ? "rgba(0,229,160,0.09)" : "rgba(255,255,255,0.01)",
+                      color:       active ? "#00e5a0" : "#444",
+                      fontFamily: "'Space Mono',monospace", fontSize: "10px", cursor: "pointer",
+                    }}
+                  >{name}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Scan button ── */}
