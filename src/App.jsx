@@ -445,7 +445,7 @@ export default function ArbScanLive() {
           </h1>
         </div>
         <p style={{ margin: 0, color: "#3a3a4a", fontSize: "10px", letterSpacing: "0.08em" }}>
-          ALL SPORTS · UK EU US · {MIN_PROFIT_PCT}%+ ARBS ONLY
+          ALL SPORTS · UK BOOKMAKERS · {MIN_PROFIT_PCT}%+ ARBS ONLY
         </p>
       </div>
 
