@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing ODDS_API_KEY" });
     }
 
-    const regions = req.query.regions || "uk,eu,us";
+    const regions = req.query.regions || "uk";
 
     const url =
       `${ODDS_BASE}/sports/upcoming/odds/` +
